@@ -6,18 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Plus, Loader2 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Badge } from "@/components/ui/badge"; // Import Badge component
+import { Badge } from "@/components/ui/badge";
 
 interface Project {
   id: number;
   title: string;
   description: string;
   progress: number;
-  noteCount: number; // Add noteCount to the Project interface
+  noteCount: number;
 }
 
 export default function ProjectsPage() {
@@ -26,12 +26,12 @@ export default function ProjectsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: projects, isLoading } = useQuery<Array<Project>>({ //Updated type
+  const { data: projects, isLoading } = useQuery<Array<Project>>({
     queryKey: ['/api/projects'],
   });
 
   const addProjectMutation = useMutation({
-    mutationFn: async (project: Omit<Project, "id" | "progress" | "noteCount">) => { //Updated type
+    mutationFn: async (project: Omit<Project, "id" | "progress" | "noteCount">) => {
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -80,6 +80,9 @@ export default function ProjectsPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Vytvořit nový projekt</DialogTitle>
+              <DialogDescription>
+                Vyplňte informace o novém projektu.
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
