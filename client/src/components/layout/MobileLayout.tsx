@@ -18,7 +18,7 @@ export function MobileLayout({ children }: MobileLayoutProps) {
     { icon: CheckSquare, label: "ToDo", href: "/todo" },
     { icon: MessageSquare, label: "Chat", href: "/chat" },
     { icon: FolderKanban, label: "Projekty", href: "/projects" },
-    { icon: Bell, label: "Oznámení", href: "/notifications", badge: unreadCount },
+    { icon: Bell, label: "Oznámení", href: "/notifications", badge: unreadCount > 0 ? unreadCount : undefined },
     { icon: Activity, label: "Historie", href: "/activity-log" },
   ];
 
@@ -53,7 +53,7 @@ export function MobileLayout({ children }: MobileLayoutProps) {
                     )}>
                       <div className="relative">
                         <Icon className="h-5 w-5" />
-                        {item.badge && item.badge > 0 && (
+                        {item.badge && (
                           <m.div
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}

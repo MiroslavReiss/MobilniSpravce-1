@@ -109,10 +109,10 @@ export function registerRoutes(app: Express): Server {
       username: users.username,
       displayName: users.displayName,
     })
-    .from(messages)
-    .leftJoin(users, eq(messages.userId, users.id))
-    .orderBy(messages.createdAt)
-    .limit(100);
+      .from(messages)
+      .leftJoin(users, eq(messages.userId, users.id))
+      .orderBy(messages.createdAt)
+      .limit(100);
 
     // Get online users
     const onlineUsers = Array.from(wss.clients).map(client => (client as any).userId).filter(Boolean);
@@ -252,10 +252,10 @@ export function registerRoutes(app: Express): Server {
       username: users.username,
       displayName: users.displayName,
     })
-    .from(projectNotes)
-    .leftJoin(users, eq(projectNotes.userId, users.id))
-    .where(eq(projectNotes.projectId, parseInt(projectId)))
-    .orderBy(projectNotes.createdAt);
+      .from(projectNotes)
+      .leftJoin(users, eq(projectNotes.userId, users.id))
+      .where(eq(projectNotes.projectId, parseInt(projectId)))
+      .orderBy(projectNotes.createdAt);
 
     res.json(notes);
   });
@@ -291,10 +291,10 @@ export function registerRoutes(app: Express): Server {
       username: users.username,
       displayName: users.displayName,
     })
-    .from(projectNotes)
-    .leftJoin(users, eq(projectNotes.userId, users.id))
-    .where(eq(projectNotes.id, note.id))
-    .limit(1);
+      .from(projectNotes)
+      .leftJoin(users, eq(projectNotes.userId, users.id))
+      .where(eq(projectNotes.id, note.id))
+      .limit(1);
 
     res.json(noteWithUser);
   });
@@ -343,10 +343,10 @@ export function registerRoutes(app: Express): Server {
       username: users.username,
       displayName: users.displayName,
     })
-    .from(activityLogs)
-    .leftJoin(users, eq(activityLogs.userId, users.id))
-    .orderBy(desc(activityLogs.createdAt))
-    .limit(100);
+      .from(activityLogs)
+      .leftJoin(users, eq(activityLogs.userId, users.id))
+      .orderBy(desc(activityLogs.createdAt))
+      .limit(100);
 
     res.json(logs);
   });
@@ -383,6 +383,198 @@ export function registerRoutes(app: Express): Server {
     });
   }
 
+  // Funkce pro ověření, zda je uživatel MadKoala
+  function isMadKoala(req: express.Request): boolean {
+    return req.user?.username === 'madkoala';
+  }
+
+  // Delete project note
+  app.delete("/api/projects/:projectId/notes/:noteId", requireAuth, async (req, res) => {
+    const { projectId, noteId } = req.params;
+
+    if (!isMadKoala(req)) {
+      return res.status(403).send("Pouze uživatel MadKoala může mazat poznámky");
+    }
+
+    const [project] = await db.select().from(projects)
+      .where(eq(projects.id, parseInt(projectId)))
+      .limit(1);
+
+    if (!project) {
+      return res.status(404).send("Projekt nenalezen");
+    }
+
+    if (project.userId !== req.user!.id) {
+      return res.status(403).send("Neautorizovaný přístup");
+    }
+
+    await db.delete(projectNotes)
+      .where(eq(projectNotes.id, parseInt(noteId)));
+
+    // Log activity
+    await logActivity(
+      req.user!.id,
+      "delete_note",
+      "project_note",
+      parseInt(noteId),
+      "Poznámka smazána"
+    );
+
+    res.status(200).send();
+  });
+
+  // Edit project note
+  app.patch("/api/projects/:projectId/notes/:noteId", requireAuth, async (req, res) => {
+    const { projectId, noteId } = req.params;
+    const { content } = req.body;
+
+    if (!isMadKoala(req)) {
+      return res.status(403).send("Pouze uživatel MadKoala může editovat poznámky");
+    }
+
+    const [project] = await db.select().from(projects)
+      .where(eq(projects.id, parseInt(projectId)))
+      .limit(1);
+
+    if (!project) {
+      return res.status(404).send("Projekt nenalezen");
+    }
+
+    if (project.userId !== req.user!.id) {
+      return res.status(403).send("Neautorizovaný přístup");
+    }
+
+    const [updatedNote] = await db.update(projectNotes)
+      .set({ content })
+      .where(eq(projectNotes.id, parseInt(noteId)))
+      .returning();
+
+    // Log activity
+    await logActivity(
+      req.user!.id,
+      "edit_note",
+      "project_note",
+      parseInt(noteId),
+      "Poznámka upravena"
+    );
+
+    res.json(updatedNote);
+  });
+
+    // Delete project
+  app.delete("/api/projects/:id", requireAuth, async (req, res) => {
+    const { id } = req.params;
+
+    if (!isMadKoala(req)) {
+      return res.status(403).send("Pouze uživatel MadKoala může mazat projekty");
+    }
+
+    const [project] = await db.select().from(projects)
+      .where(eq(projects.id, parseInt(id)))
+      .limit(1);
+
+    if (!project) {
+      return res.status(404).send("Projekt nenalezen");
+    }
+
+    if (project.userId !== req.user!.id) {
+      return res.status(403).send("Neautorizovaný přístup");
+    }
+
+    // Delete associated notes first
+    await db.delete(projectNotes)
+      .where(eq(projectNotes.projectId, parseInt(id)));
+
+    // Then delete the project
+    await db.delete(projects)
+      .where(eq(projects.id, parseInt(id)));
+
+    // Log activity
+    await logActivity(
+      req.user!.id,
+      "delete_project",
+      "project",
+      parseInt(id),
+      "Projekt smazán"
+    );
+
+    res.status(200).send();
+  });
+
+  // Delete todo
+  app.delete("/api/todos/:id", requireAuth, async (req, res) => {
+    const { id } = req.params;
+
+    if (!isMadKoala(req)) {
+      return res.status(403).send("Pouze uživatel MadKoala může mazat úkoly");
+    }
+
+    const [todo] = await db.select().from(todos)
+      .where(eq(todos.id, parseInt(id)))
+      .limit(1);
+
+    if (!todo) {
+      return res.status(404).send("Úkol nenalezen");
+    }
+
+    if (todo.userId !== req.user!.id) {
+      return res.status(403).send("Neautorizovaný přístup");
+    }
+
+    await db.delete(todos)
+      .where(eq(todos.id, parseInt(id)));
+
+    // Log activity
+    await logActivity(
+      req.user!.id,
+      "delete_todo",
+      "todo",
+      parseInt(id),
+      "Úkol smazán"
+    );
+
+    res.status(200).send();
+  });
+
+  // Edit todo
+  app.patch("/api/todos/:id/edit", requireAuth, async (req, res) => {
+    const { id } = req.params;
+    const { title } = req.body;
+
+    if (!isMadKoala(req)) {
+      return res.status(403).send("Pouze uživatel MadKoala může editovat úkoly");
+    }
+
+    const [todo] = await db.select().from(todos)
+      .where(eq(todos.id, parseInt(id)))
+      .limit(1);
+
+    if (!todo) {
+      return res.status(404).send("Úkol nenalezen");
+    }
+
+    if (todo.userId !== req.user!.id) {
+      return res.status(403).send("Neautorizovaný přístup");
+    }
+
+    const [updatedTodo] = await db.update(todos)
+      .set({ title })
+      .where(eq(todos.id, parseInt(id)))
+      .returning();
+
+    // Log activity
+    await logActivity(
+      req.user!.id,
+      "edit_todo",
+      "todo",
+      parseInt(id),
+      "Úkol upraven"
+    );
+
+    res.json(updatedTodo);
+  });
+
+
   const httpServer = createServer(app);
 
   // WebSocket setup for chat
@@ -405,9 +597,9 @@ export function registerRoutes(app: Express): Server {
             username: users.username,
             displayName: users.displayName,
           })
-          .from(users)
-          .where(eq(users.id, message.userId))
-          .limit(1);
+            .from(users)
+            .where(eq(users.id, message.userId))
+            .limit(1);
 
           // Store user ID with the connection
           (ws as any).userId = message.userId;
@@ -422,9 +614,9 @@ export function registerRoutes(app: Express): Server {
 
           // Determine offline users (users not in connectedClients)
           const connectedUserIds = Array.from(connectedClients.values());
-          const offlineUsers = allUsers.filter(u => 
-            !connectedUserIds.includes(u.id) && 
-            u.id !== message.userId && 
+          const offlineUsers = allUsers.filter(u =>
+            !connectedUserIds.includes(u.id) &&
+            u.id !== message.userId &&
             u.externalId // Only include users with external IDs
           );
 
