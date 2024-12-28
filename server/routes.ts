@@ -4,7 +4,7 @@ import { WebSocketServer } from "ws";
 import { setupAuth } from "./auth";
 import { db } from "@db";
 import { todos, projects, projectNotes, messages, users } from "@db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, count } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   const requireAuth = setupAuth(app);
@@ -81,14 +81,12 @@ export function registerRoutes(app: Express): Server {
         title: projects.title,
         description: projects.description,
         progress: projects.progress,
-        noteCount: db
-          .select({ count: sql`count(*)` })
-          .from(projectNotes)
-          .where(eq(projectNotes.projectId, projects.id))
-          .limit(1),
+        noteCount: sql`count(${projectNotes.id})::int`
       })
       .from(projects)
-      .where(eq(projects.userId, req.user!.id));
+      .leftJoin(projectNotes, eq(projects.id, projectNotes.projectId))
+      .where(eq(projects.userId, req.user!.id))
+      .groupBy(projects.id);
 
     res.json(userProjects);
   });
