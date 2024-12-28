@@ -5,9 +5,73 @@ import { setupAuth } from "./auth";
 import { db } from "@db";
 import { todos, projects, projectNotes, messages, users, notifications, activityLogs } from "@db/schema";
 import { eq, sql, desc } from "drizzle-orm";
+import fileUpload from "express-fileupload";
+import path from "path";
+import { randomBytes } from "crypto";
+import express from 'express';
 
 export function registerRoutes(app: Express): Server {
   const requireAuth = setupAuth(app);
+
+  // Setup file upload middleware
+  app.use(fileUpload({
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max file size
+    abortOnLimit: true,
+    createParentPath: true,
+    useTempFiles: true,
+    tempFileDir: '/tmp/'
+  }));
+
+  // Add avatar upload endpoint
+  app.post("/api/user/avatar", requireAuth, async (req, res) => {
+    try {
+      if (!req.files || !req.files.avatar) {
+        return res.status(400).send("No file uploaded");
+      }
+
+      const avatar = req.files.avatar;
+
+      if (Array.isArray(avatar)) {
+        return res.status(400).send("Multiple files not allowed");
+      }
+
+      if (!avatar.mimetype.startsWith('image/')) {
+        return res.status(400).send("Only images are allowed");
+      }
+
+      // Generate unique filename
+      const fileExt = path.extname(avatar.name);
+      const fileName = `${randomBytes(16).toString('hex')}${fileExt}`;
+      const uploadPath = path.join(process.cwd(), 'uploads', fileName);
+
+      // Move file to uploads directory
+      await avatar.mv(uploadPath);
+
+      // Update user's avatar URL in database
+      const avatarUrl = `/uploads/${fileName}`;
+      const [updatedUser] = await db.update(users)
+        .set({ avatar: avatarUrl })
+        .where(eq(users.id, req.user!.id))
+        .returning();
+
+      // Create activity log
+      await logActivity(
+        req.user!.id,
+        "update_avatar",
+        "user",
+        req.user!.id,
+        "Updated profile avatar"
+      );
+
+      res.json({ avatarUrl });
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      res.status(500).send("Failed to upload avatar");
+    }
+  });
+
+  // Serve uploaded files
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
   // Add PATCH endpoint for todo toggle
   app.patch("/api/todos/:id", requireAuth, async (req, res) => {
