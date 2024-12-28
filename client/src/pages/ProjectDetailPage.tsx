@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRoute } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2 } from "lucide-react";
+import { Loader2, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface Project {
   id: number;
@@ -22,6 +23,8 @@ interface Note {
   content: string;
   createdAt: string;
   userId: number;
+  username: string;
+  displayName?: string;
 }
 
 export default function ProjectDetailPage() {
@@ -35,10 +38,13 @@ export default function ProjectDetailPage() {
 
   const { data: project, isLoading: projectLoading } = useQuery<Project>({
     queryKey: [`/api/projects/${projectId}`],
-    onSuccess: (data) => {
-      setProgressValue(data.progress);
-    },
   });
+
+  useEffect(() => {
+    if (project) {
+      setProgressValue(project.progress);
+    }
+  }, [project]);
 
   const { data: notes, isLoading: notesLoading } = useQuery<Note[]>({
     queryKey: [`/api/projects/${projectId}/notes`],
@@ -136,20 +142,22 @@ export default function ProjectDetailPage() {
             <div>
               <div className="flex justify-between items-center mb-2">
                 <label className="text-sm font-medium">Progress: {progressValue}%</label>
-                <Button 
-                  size="sm"
-                  onClick={handleSaveProgress}
-                  disabled={!isProgressDirty || updateProgressMutation.isPending}
-                >
-                  {updateProgressMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Ukládání...
-                    </>
-                  ) : (
-                    "Uložit"
-                  )}
-                </Button>
+                {isProgressDirty && (
+                  <Button 
+                    size="sm"
+                    onClick={handleSaveProgress}
+                    disabled={updateProgressMutation.isPending}
+                  >
+                    {updateProgressMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Ukládání...
+                      </>
+                    ) : (
+                      "Uložit"
+                    )}
+                  </Button>
+                )}
               </div>
               <Slider
                 value={[progressValue]}
@@ -189,10 +197,24 @@ export default function ProjectDetailPage() {
             {notes?.map((note) => (
               <Card key={note.id}>
                 <CardContent className="py-3">
-                  <p className="whitespace-pre-wrap">{note.content}</p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {new Date(note.createdAt).toLocaleString()}
-                  </p>
+                  <div className="flex items-start gap-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback>
+                        {note.displayName?.[0] || note.username[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start">
+                        <span className="font-medium">
+                          {note.displayName || note.username}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(note.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="mt-2 whitespace-pre-wrap">{note.content}</p>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             ))}

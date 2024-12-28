@@ -158,8 +158,19 @@ export function registerRoutes(app: Express): Server {
       return res.status(403).send("Unauthorized");
     }
 
-    const notes = await db.select().from(projectNotes)
-      .where(eq(projectNotes.projectId, parseInt(projectId)));
+    const notes = await db.select({
+      id: projectNotes.id,
+      content: projectNotes.content,
+      createdAt: projectNotes.createdAt,
+      userId: projectNotes.userId,
+      username: users.username,
+      displayName: users.displayName,
+    })
+    .from(projectNotes)
+    .leftJoin(users, eq(projectNotes.userId, users.id))
+    .where(eq(projectNotes.projectId, parseInt(projectId)))
+    .orderBy(projectNotes.createdAt);
+
     res.json(notes);
   });
 
@@ -184,7 +195,22 @@ export function registerRoutes(app: Express): Server {
       projectId: parseInt(projectId),
       userId: req.user!.id,
     }).returning();
-    res.json(note);
+
+    // Return note with user info
+    const [noteWithUser] = await db.select({
+      id: projectNotes.id,
+      content: projectNotes.content,
+      createdAt: projectNotes.createdAt,
+      userId: projectNotes.userId,
+      username: users.username,
+      displayName: users.displayName,
+    })
+    .from(projectNotes)
+    .leftJoin(users, eq(projectNotes.userId, users.id))
+    .where(eq(projectNotes.id, note.id))
+    .limit(1);
+
+    res.json(noteWithUser);
   });
 
   const httpServer = createServer(app);

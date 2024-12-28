@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, User, Check, CheckCheck } from "lucide-react";
+import { Send, Check, CheckCheck } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 
@@ -44,7 +44,7 @@ export default function ChatPage() {
             {onlineUsers.length === 0 ? (
               <Badge variant="secondary">Nikdo není online</Badge>
             ) : (
-              <Badge variant="success">{onlineUsers.length} online</Badge>
+              <Badge variant="secondary">{onlineUsers.length} online</Badge>
             )}
           </div>
         </div>
@@ -75,7 +75,7 @@ export default function ChatPage() {
                 <span className="text-xs text-muted-foreground mb-1">
                   {message.displayName || message.username}
                   {onlineUsers.includes(message.userId) && (
-                    <Badge variant="success" className="ml-2">online</Badge>
+                    <Badge variant="secondary" className="ml-2">online</Badge>
                   )}
                 </span>
                 <Card className={`p-3 max-w-[75%] ${
