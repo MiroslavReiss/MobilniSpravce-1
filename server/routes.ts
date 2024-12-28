@@ -3,8 +3,8 @@ import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { todos, projects, projectNotes, messages, users } from "@db/schema";
-import { eq, sql, count } from "drizzle-orm";
+import { todos, projects, projectNotes, messages, users, notifications, activityLogs } from "@db/schema";
+import { eq, sql, desc } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   const requireAuth = setupAuth(app);
@@ -213,6 +213,90 @@ export function registerRoutes(app: Express): Server {
     res.json(noteWithUser);
   });
 
+  // Notifications routes
+  app.get("/api/notifications", requireAuth, async (req, res) => {
+    const userNotifications = await db.select()
+      .from(notifications)
+      .where(eq(notifications.userId, req.user!.id))
+      .orderBy(desc(notifications.createdAt));
+    res.json(userNotifications);
+  });
+
+  app.post("/api/notifications/:id/read", requireAuth, async (req, res) => {
+    const { id } = req.params;
+    const [notification] = await db.select()
+      .from(notifications)
+      .where(eq(notifications.id, parseInt(id)))
+      .limit(1);
+
+    if (!notification) {
+      return res.status(404).send("Notification not found");
+    }
+
+    if (notification.userId !== req.user!.id) {
+      return res.status(403).send("Unauthorized");
+    }
+
+    const [updated] = await db.update(notifications)
+      .set({ read: true })
+      .where(eq(notifications.id, parseInt(id)))
+      .returning();
+
+    res.json(updated);
+  });
+
+  // Activity logs routes
+  app.get("/api/activity-logs", requireAuth, async (req, res) => {
+    const logs = await db.select({
+      id: activityLogs.id,
+      action: activityLogs.action,
+      entityType: activityLogs.entityType,
+      entityId: activityLogs.entityId,
+      details: activityLogs.details,
+      createdAt: activityLogs.createdAt,
+      username: users.username,
+      displayName: users.displayName,
+    })
+    .from(activityLogs)
+    .leftJoin(users, eq(activityLogs.userId, users.id))
+    .orderBy(desc(activityLogs.createdAt))
+    .limit(100);
+
+    res.json(logs);
+  });
+
+  // Helper function to create activity logs
+  async function logActivity(
+    userId: number,
+    action: string,
+    entityType: string,
+    entityId?: number,
+    details?: string
+  ) {
+    await db.insert(activityLogs).values({
+      userId,
+      action,
+      entityType,
+      entityId,
+      details,
+    });
+  }
+
+  // Helper function to create notifications
+  async function createNotification(
+    userId: number,
+    title: string,
+    message: string,
+    type: string
+  ) {
+    await db.insert(notifications).values({
+      userId,
+      title,
+      message,
+      type,
+    });
+  }
+
   const httpServer = createServer(app);
 
   // WebSocket setup for chat
@@ -231,33 +315,54 @@ export function registerRoutes(app: Express): Server {
           }).returning();
 
           // Get user info
-          const [user] = await db
-            .select({
-              username: users.username,
-              displayName: users.displayName,
-            })
-            .from(users)
-            .where(eq(users.id, message.userId))
-            .limit(1);
+          const [user] = await db.select({
+            username: users.username,
+            displayName: users.displayName,
+          })
+          .from(users)
+          .where(eq(users.id, message.userId))
+          .limit(1);
 
           // Store user ID with the connection
           (ws as any).userId = message.userId;
           connectedClients.set(ws, message.userId);
 
-          // Broadcast to all clients with user info and online status
+          // Create notification for all other users
+          const allUsers = await db.select().from(users);
+          for (const otherUser of allUsers) {
+            if (otherUser.id !== message.userId) {
+              await createNotification(
+                otherUser.id,
+                "Nová zpráva",
+                `${user.displayName || user.username} poslal(a) novou zprávu`,
+                "chat"
+              );
+            }
+          }
+
+          // Broadcast to all clients
           const fullMessage = {
-            ...savedMessage,
-            username: user.username,
-            displayName: user.displayName,
-            onlineUsers: Array.from(connectedClients.values())
+            type: "message",
+            data: {
+              ...savedMessage,
+              username: user.username,
+              displayName: user.displayName,
+              onlineUsers: Array.from(connectedClients.values())
+            }
           };
 
           wss.clients.forEach((client) => {
-            client.send(JSON.stringify({
-              type: "message",
-              data: fullMessage
-            }));
+            client.send(JSON.stringify(fullMessage));
           });
+
+          // Log activity
+          await logActivity(
+            message.userId,
+            "send_message",
+            "chat",
+            savedMessage.id,
+            "Odeslána nová zpráva"
+          );
         }
 
         // Handle read receipt

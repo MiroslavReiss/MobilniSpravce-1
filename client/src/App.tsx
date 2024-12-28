@@ -12,6 +12,8 @@ import ChatPage from "./pages/ChatPage";
 import ProjectsPage from "./pages/ProjectsPage";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
 import { MobileLayout } from "./components/layout/MobileLayout";
+import NotificationsPage from "./pages/NotificationsPage";
+import ActivityLogPage from "./pages/ActivityLogPage";
 
 function App() {
   return (
@@ -46,6 +48,8 @@ function AppContent() {
         <Route path="/chat" component={ChatPage} />
         <Route path="/projects" component={ProjectsPage} />
         <Route path="/projects/:id" component={ProjectDetailPage} />
+        <Route path="/notifications" component={NotificationsPage} />
+        <Route path="/activity-log" component={ActivityLogPage} />
         <Route>
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
             <h1 className="text-2xl font-bold">404 - Stránka nenalezena</h1>

@@ -65,8 +65,10 @@ export function useChat(): ChatHook {
   }, [socket]);
 
   useEffect(() => {
+    // Use the current host and protocol
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    const host = window.location.host;
+    const ws = new WebSocket(`${protocol}//${host}/ws`);
 
     ws.onopen = () => {
       setIsConnected(true);
@@ -87,7 +89,7 @@ export function useChat(): ChatHook {
               setChatState(prev => ({
                 ...prev,
                 messages: [...prev.messages, data.data],
-                onlineUsers: data.onlineUsers, // Assuming onlineUsers is included in the message data
+                onlineUsers: data.data.onlineUsers,
               }));
             }
             break;
