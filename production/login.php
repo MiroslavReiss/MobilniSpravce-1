@@ -5,12 +5,12 @@ require_once 'auth.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
-    
+
     if (login($username, $password)) {
         header('Location: index.php');
         exit;
     }
-    
+
     $error = 'Nesprávné přihlašovací údaje';
 }
 ?>
@@ -26,22 +26,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="login-container">
         <form method="POST" class="login-form">
             <h1>Přihlášení</h1>
-            
+
             <?php if (isset($error)): ?>
                 <div class="error"><?php echo sanitize($error); ?></div>
             <?php endif; ?>
-            
+
             <div class="form-group">
                 <label for="username">Uživatelské jméno</label>
                 <input type="text" id="username" name="username" required>
             </div>
-            
+
             <div class="form-group">
                 <label for="password">Heslo</label>
                 <input type="password" id="password" name="password" required>
             </div>
-            
+
             <button type="submit">Přihlásit se</button>
+
+            <p class="text-center mt-4">
+                Nemáte účet? <a href="register.php">Zaregistrujte se</a>
+            </p>
         </form>
     </div>
 </body>

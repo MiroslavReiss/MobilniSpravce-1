@@ -167,3 +167,21 @@ main {
     border-radius: var(--radius);
     margin-bottom: 1rem;
 }
+
+/* Přidání nových stylů pro login a registraci */
+.text-center {
+    text-align: center;
+}
+
+.mt-4 {
+    margin-top: 1rem;
+}
+
+.login-form a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+.login-form a:hover {
+    text-decoration: underline;
+}
