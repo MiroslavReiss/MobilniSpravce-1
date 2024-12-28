@@ -14,6 +14,7 @@ import ProjectDetailPage from "./pages/ProjectDetailPage";
 import { MobileLayout } from "./components/layout/MobileLayout";
 import NotificationsPage from "./pages/NotificationsPage";
 import ActivityLogPage from "./pages/ActivityLogPage";
+import { WebSocketProvider } from "./components/providers/WebSocketProvider";
 
 function App() {
   return (
@@ -40,24 +41,26 @@ function AppContent() {
   }
 
   return (
-    <MobileLayout>
-      <Switch>
-        <Route path="/" component={DashboardPage} />
-        <Route path="/profile" component={ProfilePage} />
-        <Route path="/todo" component={TodoPage} />
-        <Route path="/chat" component={ChatPage} />
-        <Route path="/projects" component={ProjectsPage} />
-        <Route path="/projects/:id" component={ProjectDetailPage} />
-        <Route path="/notifications" component={NotificationsPage} />
-        <Route path="/activity-log" component={ActivityLogPage} />
-        <Route>
-          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-            <h1 className="text-2xl font-bold">404 - Stránka nenalezena</h1>
-            <p className="text-muted-foreground">Tato stránka neexistuje</p>
-          </div>
-        </Route>
-      </Switch>
-    </MobileLayout>
+    <WebSocketProvider>
+      <MobileLayout>
+        <Switch>
+          <Route path="/" component={DashboardPage} />
+          <Route path="/profile" component={ProfilePage} />
+          <Route path="/todo" component={TodoPage} />
+          <Route path="/chat" component={ChatPage} />
+          <Route path="/projects" component={ProjectsPage} />
+          <Route path="/projects/:id" component={ProjectDetailPage} />
+          <Route path="/notifications" component={NotificationsPage} />
+          <Route path="/activity-log" component={ActivityLogPage} />
+          <Route>
+            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+              <h1 className="text-2xl font-bold">404 - Stránka nenalezena</h1>
+              <p className="text-muted-foreground">Tato stránka neexistuje</p>
+            </div>
+          </Route>
+        </Switch>
+      </MobileLayout>
+    </WebSocketProvider>
   );
 }
 
