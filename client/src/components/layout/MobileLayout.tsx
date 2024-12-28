@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, User, CheckSquare, MessageSquare, FolderKanban, Bell, Activity } from "lucide-react";
+import { Home, User, CheckSquare, MessageSquare, FolderKanban, Bell, Activity, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/hooks/use-notifications";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +24,22 @@ export function MobileLayout({ children }: MobileLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="pb-16">
+      {/* Header with settings icon */}
+      <header className="fixed top-0 left-0 right-0 h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50">
+        <div className="flex items-center justify-end h-full px-4">
+          <Link href="/profile">
+            <m.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="p-2 rounded-lg hover:bg-accent"
+            >
+              <Settings className="h-5 w-5 text-muted-foreground hover:text-foreground" />
+            </m.div>
+          </Link>
+        </div>
+      </header>
+
+      <main className="pt-14 pb-16">
         {children}
       </main>
 

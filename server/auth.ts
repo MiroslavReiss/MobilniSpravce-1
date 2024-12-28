@@ -28,6 +28,9 @@ const crypto = {
   },
 };
 
+// Globální stav pro povolení/zakázání registrací
+let registrationsEnabled = true;
+
 // extend express user object with our schema
 declare global {
   namespace Express {
@@ -35,14 +38,25 @@ declare global {
   }
 }
 
+// Auth middleware - přesunuto na začátek
+const createRequireAuth = () => {
+  return (req: Express.Request, res: Express.Response, next: Express.NextFunction) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Unauthorized");
+    }
+    next();
+  };
+};
+
 export function setupAuth(app: Express) {
+  const requireAuth = createRequireAuth();
   const MemoryStore = createMemoryStore(session);
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID || "development-secret",
     resave: false,
     saveUninitialized: false,
     cookie: { 
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 dní
     },
     store: new MemoryStore({
       checkPeriod: 86400000, // prune expired entries every 24h
@@ -62,6 +76,11 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // Funkce pro ověření admin práv
+  function isMadKoala(req: Express.Request): boolean {
+    return req.user?.username === 'madkoala';
+  }
+
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
@@ -74,12 +93,10 @@ export function setupAuth(app: Express) {
         if (!user) {
           return done(null, false, { message: "Nesprávné uživatelské jméno." });
         }
-
         const isMatch = await crypto.compare(password, user.password);
         if (!isMatch) {
           return done(null, false, { message: "Nesprávné heslo." });
         }
-
         return done(null, user);
       } catch (err) {
         return done(err);
@@ -104,16 +121,86 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Auth middleware
-  const requireAuth = (req: Express.Request, res: Express.Response, next: Express.NextFunction) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Unauthorized");
+  // Admin endpoints
+  app.get("/api/admin/users", requireAuth, async (req, res) => {
+    if (!isMadKoala(req)) {
+      return res.status(403).send("Přístup odepřen");
     }
-    next();
-  };
+
+    const allUsers = await db.select().from(users);
+    res.json(allUsers);
+  });
+
+  app.patch("/api/admin/users/:id", requireAuth, async (req, res) => {
+    if (!isMadKoala(req)) {
+      return res.status(403).send("Přístup odepřen");
+    }
+
+    const { id } = req.params;
+    const { username, displayName, password } = req.body;
+
+    try {
+      const updateData: Partial<SelectUser> = {};
+      if (username) updateData.username = username;
+      if (displayName) updateData.displayName = displayName;
+      if (password) {
+        updateData.password = await crypto.hash(password);
+      }
+
+      const [updatedUser] = await db.update(users)
+        .set(updateData)
+        .where(eq(users.id, parseInt(id)))
+        .returning();
+
+      res.json(updatedUser);
+    } catch (error) {
+      res.status(500).send("Chyba při aktualizaci uživatele");
+    }
+  });
+
+  app.delete("/api/admin/users/:id", requireAuth, async (req, res) => {
+    if (!isMadKoala(req)) {
+      return res.status(403).send("Přístup odepřen");
+    }
+
+    const { id } = req.params;
+
+    if (req.user?.id === parseInt(id)) {
+      return res.status(400).send("Nelze smazat vlastní účet");
+    }
+
+    try {
+      await db.delete(users).where(eq(users.id, parseInt(id)));
+      res.status(200).send("Uživatel byl smazán");
+    } catch (error) {
+      res.status(500).send("Chyba při mazání uživatele");
+    }
+  });
+
+  app.post("/api/admin/registrations", requireAuth, async (req, res) => {
+    if (!isMadKoala(req)) {
+      return res.status(403).send("Přístup odepřen");
+    }
+
+    const { enabled } = req.body;
+    registrationsEnabled = enabled;
+    res.json({ registrationsEnabled });
+  });
+
+  app.get("/api/admin/registrations", requireAuth, async (req, res) => {
+    if (!isMadKoala(req)) {
+      return res.status(403).send("Přístup odepřen");
+    }
+
+    res.json({ registrationsEnabled });
+  });
 
   app.post("/api/register", async (req, res, next) => {
     try {
+      if (!registrationsEnabled) {
+        return res.status(403).send("Registrace jsou momentálně zakázány");
+      }
+
       const result = insertUserSchema.safeParse(req.body);
       if (!result.success) {
         return res
@@ -218,7 +305,8 @@ export function setupAuth(app: Express) {
         id: req.user.id,
         username: req.user.username,
         displayName: req.user.displayName,
-        avatar: req.user.avatar
+        avatar: req.user.avatar,
+        isAdmin: req.user.username === 'madkoala'
       });
     }
     res.status(401).send("Nejste přihlášeni");

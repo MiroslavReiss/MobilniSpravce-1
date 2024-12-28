@@ -2,10 +2,14 @@ import { useUser } from "@/hooks/use-user";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User, LogOut, Upload } from "lucide-react";
+import { User, LogOut, Upload, UserCog, Key, UserX, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useRef } from "react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 
 export default function ProfilePage() {
   const { user, logout } = useUser();
@@ -13,6 +17,18 @@ export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const [isUploading, setIsUploading] = useState(false);
+  const [editUserDialog, setEditUserDialog] = useState<{ open: boolean; userId: number | null }>({ open: false, userId: null });
+
+  // Admin queries
+  const { data: users = [] } = useQuery({
+    queryKey: ['/api/admin/users'],
+    enabled: user?.isAdmin
+  });
+
+  const { data: registrationSettings } = useQuery({
+    queryKey: ['/api/admin/registrations'],
+    enabled: user?.isAdmin
+  });
 
   const uploadAvatarMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -48,6 +64,96 @@ export default function ProfilePage() {
       toast({
         title: "Chyba",
         description: error.message || "Nepodařilo se nahrát avatar",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      toast({
+        title: "Úspěch",
+        description: "Uživatel byl smazán",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Chyba",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ userId, data }: { userId: number; data: any }) => {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      setEditUserDialog({ open: false, userId: null });
+      toast({
+        title: "Úspěch",
+        description: "Uživatel byl aktualizován",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Chyba",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const toggleRegistrationsMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const response = await fetch('/api/admin/registrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/registrations'] });
+      toast({
+        title: "Úspěch",
+        description: "Nastavení registrací bylo aktualizováno",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Chyba",
+        description: error.message,
         variant: "destructive",
       });
     },
@@ -98,6 +204,16 @@ export default function ProfilePage() {
       }
 
       uploadAvatarMutation.mutate(file);
+    }
+  };
+
+  const handleEditUser = (userId: number, data: any) => {
+    updateUserMutation.mutate({ userId, data });
+  };
+
+  const handleDeleteUser = (userId: number) => {
+    if (window.confirm('Opravdu chcete smazat tohoto uživatele?')) {
+      deleteUserMutation.mutate(userId);
     }
   };
 
@@ -152,6 +268,100 @@ export default function ProfilePage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Admin sekce */}
+      {user?.isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Administrace</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Povolení/zakázání registrací */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Povolit registrace</Label>
+                <p className="text-sm text-muted-foreground">
+                  Povolí nebo zakáže možnost registrace nových uživatelů
+                </p>
+              </div>
+              <Switch
+                checked={registrationSettings?.registrationsEnabled}
+                onCheckedChange={(checked) => toggleRegistrationsMutation.mutate(checked)}
+              />
+            </div>
+
+            {/* Seznam uživatelů */}
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold">Správa uživatelů</h3>
+              <div className="space-y-2">
+                {users.map((u: any) => (
+                  <div key={u.id} className="flex items-center justify-between p-2 border rounded-lg">
+                    <div>
+                      <p className="font-medium">{u.displayName || u.username}</p>
+                      <p className="text-sm text-muted-foreground">@{u.username}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditUserDialog({ open: true, userId: u.id })}
+                      >
+                        <UserCog className="h-4 w-4" />
+                      </Button>
+                      {u.id !== user.id && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteUser(u.id)}
+                        >
+                          <UserX className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Dialog pro editaci uživatele */}
+      <Dialog open={editUserDialog.open} onOpenChange={(open) => setEditUserDialog({ open, userId: null })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upravit uživatele</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const data: any = {};
+              formData.forEach((value, key) => {
+                if (value) data[key] = value;
+              });
+              if (editUserDialog.userId) {
+                handleEditUser(editUserDialog.userId, data);
+              }
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="username">Uživatelské jméno</Label>
+              <Input id="username" name="username" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="displayName">Zobrazované jméno</Label>
+              <Input id="displayName" name="displayName" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Nové heslo</Label>
+              <Input id="password" name="password" type="password" />
+            </div>
+            <Button type="submit">Uložit změny</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
