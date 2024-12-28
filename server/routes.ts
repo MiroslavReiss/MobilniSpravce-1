@@ -33,6 +33,24 @@ export function registerRoutes(app: Express): Server {
     res.json(userProjects);
   });
 
+  app.get("/api/projects/:id", async (req, res) => {
+    if (!req.user) return res.status(401).send("Unauthorized");
+    const { id } = req.params;
+    const [project] = await db.select().from(projects)
+      .where(eq(projects.id, parseInt(id)))
+      .limit(1);
+
+    if (!project) {
+      return res.status(404).send("Project not found");
+    }
+
+    if (project.userId !== req.user.id) {
+      return res.status(403).send("Unauthorized");
+    }
+
+    res.json(project);
+  });
+
   app.post("/api/projects", async (req, res) => {
     if (!req.user) return res.status(401).send("Unauthorized");
     const { title, description } = req.body;
@@ -44,10 +62,48 @@ export function registerRoutes(app: Express): Server {
     res.json(project);
   });
 
+  app.patch("/api/projects/:id", async (req, res) => {
+    if (!req.user) return res.status(401).send("Unauthorized");
+    const { id } = req.params;
+    const { progress } = req.body;
+
+    const [project] = await db.select().from(projects)
+      .where(eq(projects.id, parseInt(id)))
+      .limit(1);
+
+    if (!project) {
+      return res.status(404).send("Project not found");
+    }
+
+    if (project.userId !== req.user.id) {
+      return res.status(403).send("Unauthorized");
+    }
+
+    const [updatedProject] = await db.update(projects)
+      .set({ progress })
+      .where(eq(projects.id, parseInt(id)))
+      .returning();
+
+    res.json(updatedProject);
+  });
+
   // Project notes routes
   app.get("/api/projects/:projectId/notes", async (req, res) => {
     if (!req.user) return res.status(401).send("Unauthorized");
     const { projectId } = req.params;
+
+    const [project] = await db.select().from(projects)
+      .where(eq(projects.id, parseInt(projectId)))
+      .limit(1);
+
+    if (!project) {
+      return res.status(404).send("Project not found");
+    }
+
+    if (project.userId !== req.user.id) {
+      return res.status(403).send("Unauthorized");
+    }
+
     const notes = await db.select().from(projectNotes)
       .where(eq(projectNotes.projectId, parseInt(projectId)));
     res.json(notes);
@@ -57,6 +113,19 @@ export function registerRoutes(app: Express): Server {
     if (!req.user) return res.status(401).send("Unauthorized");
     const { projectId } = req.params;
     const { content } = req.body;
+
+    const [project] = await db.select().from(projects)
+      .where(eq(projects.id, parseInt(projectId)))
+      .limit(1);
+
+    if (!project) {
+      return res.status(404).send("Project not found");
+    }
+
+    if (project.userId !== req.user.id) {
+      return res.status(403).send("Unauthorized");
+    }
+
     const [note] = await db.insert(projectNotes).values({
       content,
       projectId: parseInt(projectId),
@@ -72,17 +141,21 @@ export function registerRoutes(app: Express): Server {
 
   wss.on("connection", (ws) => {
     ws.on("message", async (data) => {
-      const message = JSON.parse(data.toString());
-      if (message.type === "chat") {
-        const [savedMessage] = await db.insert(messages).values({
-          content: message.content,
-          userId: message.userId,
-        }).returning();
-        
-        // Broadcast to all clients
-        wss.clients.forEach((client) => {
-          client.send(JSON.stringify(savedMessage));
-        });
+      try {
+        const message = JSON.parse(data.toString());
+        if (message.type === "chat") {
+          const [savedMessage] = await db.insert(messages).values({
+            content: message.content,
+            userId: message.userId,
+          }).returning();
+
+          // Broadcast to all clients
+          wss.clients.forEach((client) => {
+            client.send(JSON.stringify(savedMessage));
+          });
+        }
+      } catch (error) {
+        console.error('Error processing message:', error);
       }
     });
   });

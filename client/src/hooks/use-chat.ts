@@ -21,7 +21,9 @@ export function useChat(): ChatHook {
   const { toast } = useToast();
 
   useEffect(() => {
-    const ws = new WebSocket(`ws://${window.location.host}/ws`);
+    // Get the correct WebSocket URL based on the current protocol
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
     ws.onopen = () => {
       setIsConnected(true);
@@ -32,8 +34,14 @@ export function useChat(): ChatHook {
     };
 
     ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      setMessages((prev) => [...prev, message]);
+      try {
+        const message = JSON.parse(event.data);
+        if (message && message.id && message.content) {
+          setMessages((prev) => [...prev, message]);
+        }
+      } catch (error) {
+        console.error('Error parsing message:', error);
+      }
     };
 
     ws.onclose = () => {
@@ -43,26 +51,55 @@ export function useChat(): ChatHook {
         description: "Připojení k chatu bylo přerušeno",
         variant: "destructive",
       });
+
+      // Try to reconnect after 5 seconds
+      setTimeout(() => {
+        toast({
+          title: "Reconnecting",
+          description: "Pokus o znovupřipojení...",
+        });
+      }, 5000);
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      toast({
+        title: "Chyba chatu",
+        description: "Nastala chyba v připojení",
+        variant: "destructive",
+      });
     };
 
     setSocket(ws);
 
+    // Cleanup on unmount
     return () => {
-      ws.close();
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
     };
   }, []);
 
   const sendMessage = useCallback((content: string, userId: number) => {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({
-        type: "chat",
-        content,
-        userId,
-      }));
+    if (socket?.readyState === WebSocket.OPEN) {
+      try {
+        socket.send(JSON.stringify({
+          type: "chat",
+          content,
+          userId,
+        }));
+      } catch (error) {
+        console.error('Error sending message:', error);
+        toast({
+          title: "Chyba",
+          description: "Zprávu se nepodařilo odeslat",
+          variant: "destructive",
+        });
+      }
     } else {
       toast({
         title: "Chyba",
-        description: "Zprávu se nepodařilo odeslat",
+        description: "Nejste připojeni k chatu",
         variant: "destructive",
       });
     }
