@@ -29,32 +29,41 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const reconnectAttemptRef = useRef(0);
 
   useEffect(() => {
+    let isMounted = true;
     if (!user) return;
 
     const connect = () => {
+      if (!isMounted) return;
+
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
       const ws = new WebSocket(`${protocol}//${host}/ws`);
 
       ws.onopen = () => {
+        if (!isMounted) return;
         setIsConnected(true);
         reconnectAttemptRef.current = 0;
       };
 
       ws.onclose = () => {
+        if (!isMounted) return;
         setIsConnected(false);
+
         // Silent reconnect with exponential backoff
         const backoffTime = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current), 30000);
         reconnectAttemptRef.current++;
 
-        reconnectTimeoutRef.current = setTimeout(() => {
-          if (document.visibilityState === 'visible') {
-            connect();
-          }
-        }, backoffTime);
+        if (isMounted) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (document.visibilityState === 'visible' && isMounted) {
+              connect();
+            }
+          }, backoffTime);
+        }
       };
 
       ws.onerror = () => {
+        if (!isMounted) return;
         setIsConnected(false);
       };
 
@@ -64,9 +73,6 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
         if (ws.readyState === WebSocket.OPEN) {
           ws.close();
         }
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current);
-        }
       };
     };
 
@@ -75,7 +81,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
 
     // Handle page visibility changes
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && !isConnected) {
+      if (document.visibilityState === 'visible' && !isConnected && isMounted) {
         connect();
       }
     };
@@ -84,6 +90,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
 
     // Cleanup
     return () => {
+      isMounted = false;
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (socket) {
         socket.close();
@@ -92,7 +99,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [user]);
+  }, [user, isConnected]);
 
   const sendMessage = (message: any) => {
     if (socket?.readyState === WebSocket.OPEN) {

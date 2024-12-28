@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { motion } from "framer-motion";
 
 interface Project {
   id: number;
@@ -19,6 +20,29 @@ interface Project {
   progress: number;
   noteCount: number;
 }
+
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { 
+    opacity: 1, 
+    y: 0,
+    transition: {
+      type: "spring",
+      stiffness: 300,
+      damping: 25
+    }
+  }
+};
 
 export default function ProjectsPage() {
   const [newProject, setNewProject] = useState({ title: "", description: "" });
@@ -69,13 +93,24 @@ export default function ProjectsPage() {
   return (
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Projekty</h1>
+        <motion.h1 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="text-2xl font-bold"
+        >
+          Projekty
+        </motion.h1>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Nový projekt
-            </Button>
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Nový projekt
+              </Button>
+            </motion.div>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -110,35 +145,53 @@ export default function ProjectsPage() {
         </Dialog>
       </div>
 
-      <div className="grid gap-4">
+      <motion.div 
+        variants={container}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4"
+      >
         {projects?.map((project) => (
-          <Link key={project.id} href={`/projects/${project.id}`}>
-            <a>
-              <Card>
-                <CardHeader>
-                  <h2 className="text-xl font-semibold">{project.title}</h2>
-                </CardHeader>
-                <CardContent>
-                  {project.description && (
-                    <p className="text-sm text-muted-foreground mb-4">
-                      {project.description}
-                    </p>
-                  )}
-                  <Progress value={project.progress} className="h-2" />
-                  <div className="flex justify-between items-center mt-2">
-                    <p className="text-sm text-muted-foreground">
-                      Progress: {project.progress}%
-                    </p>
-                    <Badge variant="secondary">
-                      {project.noteCount} poznámek
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            </a>
-          </Link>
+          <motion.div
+            key={project.id}
+            variants={item}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <Link href={`/projects/${project.id}`}>
+              <a>
+                <Card className="transform transition-all hover:shadow-lg">
+                  <CardHeader>
+                    <h2 className="text-xl font-semibold">{project.title}</h2>
+                  </CardHeader>
+                  <CardContent>
+                    {project.description && (
+                      <p className="text-sm text-muted-foreground mb-4">
+                        {project.description}
+                      </p>
+                    )}
+                    <Progress value={project.progress} className="h-2" />
+                    <div className="flex justify-between items-center mt-2">
+                      <p className="text-sm text-muted-foreground">
+                        Progress: {project.progress}%
+                      </p>
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                      >
+                        <Badge variant="secondary">
+                          {project.noteCount} poznámek
+                        </Badge>
+                      </motion.div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </a>
+            </Link>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
     </div>
   );
 }
