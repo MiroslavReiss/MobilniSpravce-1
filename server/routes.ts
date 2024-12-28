@@ -4,12 +4,37 @@ import { WebSocketServer } from "ws";
 import { setupAuth } from "./auth";
 import { db } from "@db";
 import { todos, projects, projectNotes, messages, users } from "@db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   const requireAuth = setupAuth(app);
 
-  // Load previous messages
+  // Add PATCH endpoint for todo toggle
+  app.patch("/api/todos/:id", requireAuth, async (req, res) => {
+    const { id } = req.params;
+    const { completed } = req.body;
+
+    const [todo] = await db.select().from(todos)
+      .where(eq(todos.id, parseInt(id)))
+      .limit(1);
+
+    if (!todo) {
+      return res.status(404).send("Todo not found");
+    }
+
+    if (todo.userId !== req.user!.id) {
+      return res.status(403).send("Unauthorized");
+    }
+
+    const [updatedTodo] = await db.update(todos)
+      .set({ completed })
+      .where(eq(todos.id, parseInt(id)))
+      .returning();
+
+    res.json(updatedTodo);
+  });
+
+  // Load previous messages with user status
   app.get("/api/messages", requireAuth, async (req, res) => {
     const messageHistory = await db.select({
       id: messages.id,
@@ -24,7 +49,13 @@ export function registerRoutes(app: Express): Server {
     .orderBy(messages.createdAt)
     .limit(100);
 
-    res.json(messageHistory);
+    // Get online users
+    const onlineUsers = Array.from(wss.clients).map(client => (client as any).userId).filter(Boolean);
+
+    res.json({
+      messages: messageHistory,
+      onlineUsers
+    });
   });
 
   // Todo routes
@@ -44,7 +75,21 @@ export function registerRoutes(app: Express): Server {
 
   // Projects routes
   app.get("/api/projects", requireAuth, async (req, res) => {
-    const userProjects = await db.select().from(projects).where(eq(projects.userId, req.user!.id));
+    const userProjects = await db
+      .select({
+        id: projects.id,
+        title: projects.title,
+        description: projects.description,
+        progress: projects.progress,
+        noteCount: db
+          .select({ count: sql`count(*)` })
+          .from(projectNotes)
+          .where(eq(projectNotes.projectId, projects.id))
+          .limit(1),
+      })
+      .from(projects)
+      .where(eq(projects.userId, req.user!.id));
+
     res.json(userProjects);
   });
 
@@ -148,11 +193,13 @@ export function registerRoutes(app: Express): Server {
 
   // WebSocket setup for chat
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
+  const connectedClients = new Map();
 
   wss.on("connection", (ws) => {
     ws.on("message", async (data) => {
       try {
         const message = JSON.parse(data.toString());
+
         if (message.type === "chat") {
           const [savedMessage] = await db.insert(messages).values({
             content: message.content,
@@ -169,20 +216,54 @@ export function registerRoutes(app: Express): Server {
             .where(eq(users.id, message.userId))
             .limit(1);
 
-          // Broadcast to all clients with user info
+          // Store user ID with the connection
+          (ws as any).userId = message.userId;
+          connectedClients.set(ws, message.userId);
+
+          // Broadcast to all clients with user info and online status
           const fullMessage = {
             ...savedMessage,
             username: user.username,
             displayName: user.displayName,
+            onlineUsers: Array.from(connectedClients.values())
           };
 
           wss.clients.forEach((client) => {
-            client.send(JSON.stringify(fullMessage));
+            client.send(JSON.stringify({
+              type: "message",
+              data: fullMessage
+            }));
+          });
+        }
+
+        // Handle read receipt
+        if (message.type === "read") {
+          wss.clients.forEach((client) => {
+            client.send(JSON.stringify({
+              type: "read",
+              userId: message.userId,
+              messageId: message.messageId
+            }));
           });
         }
       } catch (error) {
         console.error('Error processing message:', error);
       }
+    });
+
+    // Handle disconnection
+    ws.on("close", () => {
+      const userId = connectedClients.get(ws);
+      connectedClients.delete(ws);
+
+      // Broadcast updated online users list
+      wss.clients.forEach((client) => {
+        client.send(JSON.stringify({
+          type: "userOffline",
+          userId,
+          onlineUsers: Array.from(connectedClients.values())
+        }));
+      });
     });
   });
 

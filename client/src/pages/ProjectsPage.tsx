@@ -10,12 +10,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge"; // Import Badge component
 
 interface Project {
   id: number;
   title: string;
   description: string;
   progress: number;
+  noteCount: number; // Add noteCount to the Project interface
 }
 
 export default function ProjectsPage() {
@@ -24,12 +26,12 @@ export default function ProjectsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: projects, isLoading } = useQuery<Project[]>({
+  const { data: projects, isLoading } = useQuery<Array<Project>>({ //Updated type
     queryKey: ['/api/projects'],
   });
 
   const addProjectMutation = useMutation({
-    mutationFn: async (project: Omit<Project, "id" | "progress">) => {
+    mutationFn: async (project: Omit<Project, "id" | "progress" | "noteCount">) => { //Updated type
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,9 +122,14 @@ export default function ProjectsPage() {
                     </p>
                   )}
                   <Progress value={project.progress} className="h-2" />
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Progress: {project.progress}%
-                  </p>
+                  <div className="flex justify-between items-center mt-2">
+                    <p className="text-sm text-muted-foreground">
+                      Progress: {project.progress}%
+                    </p>
+                    <Badge variant="secondary">
+                      {project.noteCount} poznámek
+                    </Badge>
+                  </div>
                 </CardContent>
               </Card>
             </a>

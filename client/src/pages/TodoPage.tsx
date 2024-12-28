@@ -17,6 +17,7 @@ export default function TodoPage() {
   const [newTodo, setNewTodo] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [pendingTodos, setPendingTodos] = useState<number[]>([]);
 
   const { data: todos, isLoading } = useQuery<Todo[]>({
     queryKey: ['/api/todos'],
@@ -48,14 +49,19 @@ export default function TodoPage() {
 
   const toggleTodoMutation = useMutation({
     mutationFn: async ({ id, completed }: { id: number; completed: boolean }) => {
-      const response = await fetch(`/api/todos/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completed }),
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Failed to update todo');
-      return response.json();
+      setPendingTodos(prev => [...prev, id]);
+      try {
+        const response = await fetch(`/api/todos/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ completed }),
+          credentials: 'include',
+        });
+        if (!response.ok) throw new Error('Failed to update todo');
+        return response.json();
+      } finally {
+        setPendingTodos(prev => prev.filter(todoId => todoId !== id));
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/todos'] });
@@ -98,15 +104,21 @@ export default function TodoPage() {
         {todos?.map((todo) => (
           <Card key={todo.id} className="p-4">
             <div className="flex items-center gap-2">
-              <Checkbox
-                checked={todo.completed}
-                onCheckedChange={(checked) => {
-                  toggleTodoMutation.mutate({
-                    id: todo.id,
-                    completed: checked as boolean,
-                  });
-                }}
-              />
+              <div className="relative">
+                <Checkbox
+                  checked={todo.completed}
+                  disabled={pendingTodos.includes(todo.id)}
+                  onCheckedChange={(checked) => {
+                    toggleTodoMutation.mutate({
+                      id: todo.id,
+                      completed: checked as boolean,
+                    });
+                  }}
+                />
+                {pendingTodos.includes(todo.id) && (
+                  <Loader2 className="absolute inset-0 h-4 w-4 animate-spin" />
+                )}
+              </div>
               <span className={todo.completed ? "line-through text-muted-foreground" : ""}>
                 {todo.title}
               </span>

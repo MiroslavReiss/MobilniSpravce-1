@@ -9,32 +9,60 @@ interface Message {
   createdAt: string;
   username: string;
   displayName?: string;
+  readBy?: number[];
+}
+
+interface ChatState {
+  messages: Message[];
+  onlineUsers: number[];
+  readReceipts: Record<number, number[]>; // messageId -> userIds who read it
 }
 
 interface ChatHook {
   messages: Message[];
   sendMessage: (content: string, userId: number) => void;
   isConnected: boolean;
+  onlineUsers: number[];
+  readReceipts: Record<number, number[]>;
+  markAsRead: (messageId: number, userId: number) => void;
 }
 
 export function useChat(): ChatHook {
   const [socket, setSocket] = useState<WebSocket | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [chatState, setChatState] = useState<ChatState>({
+    messages: [],
+    onlineUsers: [],
+    readReceipts: {},
+  });
   const [isConnected, setIsConnected] = useState(false);
   const { toast } = useToast();
   const seenMessageIds = new Set<number>();
 
   // Fetch message history
-  const { data: messageHistory } = useQuery<Message[]>({
+  const { data: messageHistory } = useQuery<{ messages: Message[], onlineUsers: number[] }>({
     queryKey: ['/api/messages'],
   });
 
   useEffect(() => {
     if (messageHistory) {
-      messageHistory.forEach(msg => seenMessageIds.add(msg.id));
-      setMessages(messageHistory);
+      messageHistory.messages.forEach(msg => seenMessageIds.add(msg.id));
+      setChatState(prev => ({
+        ...prev,
+        messages: messageHistory.messages,
+        onlineUsers: messageHistory.onlineUsers,
+      }));
     }
   }, [messageHistory]);
+
+  const markAsRead = useCallback((messageId: number, userId: number) => {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: "read",
+        messageId,
+        userId,
+      }));
+    }
+  }, [socket]);
 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -50,10 +78,39 @@ export function useChat(): ChatHook {
 
     ws.onmessage = (event) => {
       try {
-        const message = JSON.parse(event.data);
-        if (message && message.id && message.content && !seenMessageIds.has(message.id)) {
-          seenMessageIds.add(message.id);
-          setMessages((prev) => [...prev, message]);
+        const data = JSON.parse(event.data);
+
+        switch (data.type) {
+          case "message":
+            if (data.data && data.data.id && !seenMessageIds.has(data.data.id)) {
+              seenMessageIds.add(data.data.id);
+              setChatState(prev => ({
+                ...prev,
+                messages: [...prev.messages, data.data],
+                onlineUsers: data.onlineUsers, // Assuming onlineUsers is included in the message data
+              }));
+            }
+            break;
+
+          case "read":
+            setChatState(prev => ({
+              ...prev,
+              readReceipts: {
+                ...prev.readReceipts,
+                [data.messageId]: [
+                  ...(prev.readReceipts[data.messageId] || []),
+                  data.userId
+                ]
+              }
+            }));
+            break;
+
+          case "userOffline":
+            setChatState(prev => ({
+              ...prev,
+              onlineUsers: data.onlineUsers,
+            }));
+            break;
         }
       } catch (error) {
         console.error('Error parsing message:', error);
@@ -120,8 +177,11 @@ export function useChat(): ChatHook {
   }, [socket]);
 
   return {
-    messages,
+    messages: chatState.messages,
     sendMessage,
     isConnected,
+    onlineUsers: chatState.onlineUsers,
+    readReceipts: chatState.readReceipts,
+    markAsRead,
   };
 }
