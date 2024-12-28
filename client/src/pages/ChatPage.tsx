@@ -45,17 +45,26 @@ export default function ChatPage() {
               {message.userId !== user?.id && (
                 <Avatar className="h-8 w-8">
                   <AvatarFallback>
-                    <User className="h-4 w-4" />
+                    {message.displayName?.[0] || message.username[0]}
                   </AvatarFallback>
                 </Avatar>
               )}
-              <Card className={`p-3 max-w-[75%] ${
-                message.userId === user?.id ? "bg-primary text-primary-foreground" : ""
+              <div className={`flex flex-col ${
+                message.userId === user?.id ? "items-end" : "items-start"
               }`}>
-                <p className="text-sm whitespace-pre-wrap break-words">
-                  {message.content}
-                </p>
-              </Card>
+                {message.userId !== user?.id && (
+                  <span className="text-xs text-muted-foreground mb-1">
+                    {message.displayName || message.username}
+                  </span>
+                )}
+                <Card className={`p-3 max-w-[75%] ${
+                  message.userId === user?.id ? "bg-primary text-primary-foreground" : ""
+                }`}>
+                  <p className="text-sm whitespace-pre-wrap break-words">
+                    {message.content}
+                  </p>
+                </Card>
+              </div>
             </div>
           ))}
         </div>

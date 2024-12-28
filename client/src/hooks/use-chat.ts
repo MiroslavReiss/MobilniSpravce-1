@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { useQuery } from '@tanstack/react-query';
 
 interface Message {
   id: number;
   userId: number;
   content: string;
   createdAt: string;
+  username: string;
+  displayName?: string;
 }
 
 interface ChatHook {
@@ -19,9 +22,21 @@ export function useChat(): ChatHook {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const { toast } = useToast();
+  const seenMessageIds = new Set<number>();
+
+  // Fetch message history
+  const { data: messageHistory } = useQuery<Message[]>({
+    queryKey: ['/api/messages'],
+  });
 
   useEffect(() => {
-    // Get the correct WebSocket URL based on the current protocol
+    if (messageHistory) {
+      messageHistory.forEach(msg => seenMessageIds.add(msg.id));
+      setMessages(messageHistory);
+    }
+  }, [messageHistory]);
+
+  useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
@@ -36,7 +51,8 @@ export function useChat(): ChatHook {
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
-        if (message && message.id && message.content) {
+        if (message && message.id && message.content && !seenMessageIds.has(message.id)) {
+          seenMessageIds.add(message.id);
           setMessages((prev) => [...prev, message]);
         }
       } catch (error) {
@@ -52,7 +68,6 @@ export function useChat(): ChatHook {
         variant: "destructive",
       });
 
-      // Try to reconnect after 5 seconds
       setTimeout(() => {
         toast({
           title: "Reconnecting",
@@ -72,7 +87,6 @@ export function useChat(): ChatHook {
 
     setSocket(ws);
 
-    // Cleanup on unmount
     return () => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.close();

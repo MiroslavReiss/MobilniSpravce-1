@@ -28,11 +28,16 @@ export default function ProjectDetailPage() {
   const [, params] = useRoute("/projects/:id");
   const projectId = params?.id;
   const [newNote, setNewNote] = useState("");
+  const [progressValue, setProgressValue] = useState<number>(0);
+  const [isProgressDirty, setIsProgressDirty] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const { data: project, isLoading: projectLoading } = useQuery<Project>({
     queryKey: [`/api/projects/${projectId}`],
+    onSuccess: (data) => {
+      setProgressValue(data.progress);
+    },
   });
 
   const { data: notes, isLoading: notesLoading } = useQuery<Note[]>({
@@ -52,6 +57,11 @@ export default function ProjectDetailPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
+      setIsProgressDirty(false);
+      toast({
+        title: "Úspěch",
+        description: "Progress byl úspěšně uložen",
+      });
     },
     onError: () => {
       toast({
@@ -87,7 +97,12 @@ export default function ProjectDetailPage() {
   });
 
   const handleProgressChange = (value: number[]) => {
-    updateProgressMutation.mutate(value[0]);
+    setProgressValue(value[0]);
+    setIsProgressDirty(true);
+  };
+
+  const handleSaveProgress = () => {
+    updateProgressMutation.mutate(progressValue);
   };
 
   const handleAddNote = (e: React.FormEvent) => {
@@ -119,13 +134,28 @@ export default function ProjectDetailPage() {
         <CardContent>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Progress: {project.progress}%</label>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm font-medium">Progress: {progressValue}%</label>
+                <Button 
+                  size="sm"
+                  onClick={handleSaveProgress}
+                  disabled={!isProgressDirty || updateProgressMutation.isPending}
+                >
+                  {updateProgressMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Ukládání...
+                    </>
+                  ) : (
+                    "Uložit"
+                  )}
+                </Button>
+              </div>
               <Slider
-                defaultValue={[project.progress]}
+                value={[progressValue]}
                 max={100}
                 step={1}
-                onValueCommit={handleProgressChange}
-                className="mt-2"
+                onValueChange={handleProgressChange}
               />
             </div>
           </div>
@@ -144,7 +174,14 @@ export default function ProjectDetailPage() {
               placeholder="Přidat poznámku..."
             />
             <Button type="submit" disabled={addNoteMutation.isPending}>
-              Přidat poznámku
+              {addNoteMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Přidávání...
+                </>
+              ) : (
+                "Přidat poznámku"
+              )}
             </Button>
           </form>
 
