@@ -4,14 +4,14 @@ import { useChat } from "@/hooks/use-chat";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Send, Check, CheckCheck } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 
 export default function ChatPage() {
   const { user } = useUser();
-  const { messages, sendMessage, isConnected, onlineUsers, readReceipts, markAsRead } = useChat();
+  const { messages = [], sendMessage, isConnected, onlineUsers = [], readReceipts = {}, markAsRead } = useChat();
   const [newMessage, setNewMessage] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -21,11 +21,13 @@ export default function ChatPage() {
     }
 
     // Mark new messages as read
-    if (user && messages.length > 0) {
+    if (user && messages?.length > 0) {
       const lastMessage = messages[messages.length - 1];
-      markAsRead(lastMessage.id, user.id);
+      if (lastMessage?.id) {
+        markAsRead(lastMessage.id, user.id);
+      }
     }
-  }, [messages]);
+  }, [messages, user, markAsRead]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +43,7 @@ export default function ChatPage() {
         <div className="flex items-center gap-2">
           <h2 className="font-semibold">Online uživatelé:</h2>
           <div className="flex gap-1">
-            {onlineUsers.length === 0 ? (
+            {!onlineUsers || onlineUsers.length === 0 ? (
               <Badge variant="secondary">Nikdo není online</Badge>
             ) : (
               <Badge variant="secondary">{onlineUsers.length} online</Badge>
@@ -55,7 +57,7 @@ export default function ChatPage() {
         className="flex-1 p-4"
       >
         <div className="space-y-4">
-          {messages.map((message) => (
+          {messages?.map((message) => (
             <div
               key={message.id}
               className={`flex gap-2 ${
@@ -65,7 +67,7 @@ export default function ChatPage() {
               {message.userId !== user?.id && (
                 <Avatar className="h-8 w-8">
                   <AvatarFallback>
-                    {message.displayName?.[0] || message.username[0]}
+                    {message.displayName?.[0] || message.username?.[0]}
                   </AvatarFallback>
                 </Avatar>
               )}
@@ -74,7 +76,7 @@ export default function ChatPage() {
               }`}>
                 <span className="text-xs text-muted-foreground mb-1">
                   {message.displayName || message.username}
-                  {onlineUsers.includes(message.userId) && (
+                  {onlineUsers?.includes(message.userId) && (
                     <Badge variant="secondary" className="ml-2">online</Badge>
                   )}
                 </span>
