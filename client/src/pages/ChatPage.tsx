@@ -14,12 +14,17 @@ export default function ChatPage() {
   const { messages = [], sendMessage, isConnected, onlineUsers = [], readReceipts = {}, markAsRead } = useChat();
   const [newMessage, setNewMessage] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    scrollToBottom();
+  }, [messages]);
 
+  useEffect(() => {
     // Mark new messages as read
     if (user && messages?.length > 0) {
       const lastMessage = messages[messages.length - 1];
@@ -104,6 +109,7 @@ export default function ChatPage() {
               </div>
             </div>
           ))}
+          <div ref={messagesEndRef} /> {/* Anchor element for scrolling */}
         </div>
       </ScrollArea>
 
