@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { motion } from "framer-motion";
+import { m, LazyMotion, domAnimation } from "framer-motion";
 
 interface Project {
   id: number;
@@ -93,16 +93,16 @@ export default function ProjectsPage() {
   return (
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center">
-        <motion.h1 
+        <m.h1 
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           className="text-2xl font-bold"
         >
           Projekty
-        </motion.h1>
+        </m.h1>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <motion.div
+            <m.div
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
@@ -110,7 +110,7 @@ export default function ProjectsPage() {
                 <Plus className="h-4 w-4 mr-2" />
                 Nový projekt
               </Button>
-            </motion.div>
+            </m.div>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -145,14 +145,14 @@ export default function ProjectsPage() {
         </Dialog>
       </div>
 
-      <motion.div 
+      <m.div 
         variants={container}
         initial="hidden"
         animate="show"
         className="grid gap-4"
       >
         {projects?.map((project) => (
-          <motion.div
+          <m.div
             key={project.id}
             variants={item}
             whileHover={{ scale: 1.02 }}
@@ -175,7 +175,7 @@ export default function ProjectsPage() {
                       <p className="text-sm text-muted-foreground">
                         Progress: {project.progress}%
                       </p>
-                      <motion.div
+                      <m.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
                         transition={{ type: "spring", stiffness: 500, damping: 25 }}
@@ -183,15 +183,15 @@ export default function ProjectsPage() {
                         <Badge variant="secondary">
                           {project.noteCount} poznámek
                         </Badge>
-                      </motion.div>
+                      </m.div>
                     </div>
                   </CardContent>
                 </Card>
               </a>
             </Link>
-          </motion.div>
+          </m.div>
         ))}
-      </motion.div>
+      </m.div>
     </div>
   );
 }

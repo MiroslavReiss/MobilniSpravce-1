@@ -27,6 +27,8 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const { user } = useUser();
   const reconnectAttemptRef = useRef(0);
+  const maxReconnectAttempts = 5;
+  const maxBackoffTime = 10000; // 10 seconds
 
   useEffect(() => {
     let isMounted = true;
@@ -34,6 +36,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
 
     const connect = () => {
       if (!isMounted) return;
+      if (reconnectAttemptRef.current >= maxReconnectAttempts) return;
 
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
@@ -49,11 +52,14 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
         if (!isMounted) return;
         setIsConnected(false);
 
-        // Silent reconnect with exponential backoff
-        const backoffTime = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current), 30000);
-        reconnectAttemptRef.current++;
+        // Silent reconnect with limited exponential backoff
+        const backoffTime = Math.min(
+          1000 * Math.pow(1.5, reconnectAttemptRef.current),
+          maxBackoffTime
+        );
 
-        if (isMounted) {
+        if (isMounted && reconnectAttemptRef.current < maxReconnectAttempts) {
+          reconnectAttemptRef.current++;
           reconnectTimeoutRef.current = setTimeout(() => {
             if (document.visibilityState === 'visible' && isMounted) {
               connect();
@@ -68,27 +74,24 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
       };
 
       setSocket(ws);
-
-      return () => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.close();
-        }
-      };
     };
 
-    // Initial connection
     connect();
 
     // Handle page visibility changes
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && !isConnected && isMounted) {
+      if (
+        document.visibilityState === 'visible' && 
+        !isConnected && 
+        isMounted &&
+        reconnectAttemptRef.current < maxReconnectAttempts
+      ) {
         connect();
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Cleanup
     return () => {
       isMounted = false;
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -99,7 +102,12 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [user, isConnected]);
+  }, [user]);
+
+  // Reset reconnect attempts when user changes
+  useEffect(() => {
+    reconnectAttemptRef.current = 0;
+  }, [user]);
 
   const sendMessage = (message: any) => {
     if (socket?.readyState === WebSocket.OPEN) {

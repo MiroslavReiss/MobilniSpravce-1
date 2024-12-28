@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import type { ReactNode } from "react";
 
 interface PageTransitionProps {
@@ -30,13 +30,13 @@ const pageVariants = {
 
 export function PageTransition({ children }: PageTransitionProps) {
   return (
-    <motion.div
+    <m.div
       initial="initial"
       animate="enter"
       exit="exit"
       variants={pageVariants}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
