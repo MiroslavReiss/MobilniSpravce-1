@@ -1,5 +1,4 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
-import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-user";
 
 interface WebSocketContextType {
@@ -26,7 +25,6 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
-  const { toast } = useToast();
   const { user } = useUser();
   const reconnectAttemptRef = useRef(0);
 
@@ -41,19 +39,18 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
       ws.onopen = () => {
         setIsConnected(true);
         reconnectAttemptRef.current = 0;
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current);
-        }
       };
 
       ws.onclose = () => {
         setIsConnected(false);
-        // Try to reconnect with exponential backoff
+        // Silent reconnect with exponential backoff
         const backoffTime = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current), 30000);
         reconnectAttemptRef.current++;
 
         reconnectTimeoutRef.current = setTimeout(() => {
-          connect();
+          if (document.visibilityState === 'visible') {
+            connect();
+          }
         }, backoffTime);
       };
 
@@ -64,16 +61,30 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
       setSocket(ws);
 
       return () => {
-        ws.close();
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.close();
+        }
         if (reconnectTimeoutRef.current) {
           clearTimeout(reconnectTimeoutRef.current);
         }
       };
     };
 
+    // Initial connection
     connect();
 
+    // Handle page visibility changes
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !isConnected) {
+        connect();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanup
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (socket) {
         socket.close();
       }
@@ -86,12 +97,6 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const sendMessage = (message: any) => {
     if (socket?.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify(message));
-    } else {
-      toast({
-        title: "Chyba",
-        description: "Nejste připojeni k serveru",
-        variant: "destructive",
-      });
     }
   };
 
