@@ -18,6 +18,7 @@ try {
         )
     );
 } catch(PDOException $e) {
+    error_log("Připojení k databázi selhalo: " . $e->getMessage());
     die("Připojení k databázi selhalo: " . $e->getMessage());
 }
 
@@ -110,5 +111,16 @@ function jsonResponse($data) {
     header('Content-Type: application/json');
     echo json_encode($data);
     exit;
+}
+
+// Logování chyb
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+error_reporting(E_ALL);
+ini_set('error_log', __DIR__ . '/error.log');
+
+// Pomocná funkce pro logování
+function logMessage($message, $type = 'INFO') {
+    error_log(date('[Y-m-d H:i:s]') . " [$type] $message");
 }
 ?>
