@@ -9,6 +9,7 @@ import fileUpload from "express-fileupload";
 import path from "path";
 import { randomBytes } from "crypto";
 import express from 'express';
+import { sendPushNotification } from './services/notifications';
 
 export function registerRoutes(app: Express): Server {
   const requireAuth = setupAuth(app);
@@ -412,8 +413,36 @@ export function registerRoutes(app: Express): Server {
           (ws as any).userId = message.userId;
           connectedClients.set(ws, message.userId);
 
+          // Get all users and their external IDs
+          const allUsers = await db.select({
+            id: users.id,
+            username: users.username,
+            externalId: users.externalId,
+          }).from(users);
+
+          // Determine offline users (users not in connectedClients)
+          const connectedUserIds = Array.from(connectedClients.values());
+          const offlineUsers = allUsers.filter(u => 
+            !connectedUserIds.includes(u.id) && 
+            u.id !== message.userId && 
+            u.externalId // Only include users with external IDs
+          );
+
+          // If there are offline users, send them a push notification
+          if (offlineUsers.length > 0) {
+            const senderName = user.displayName || user.username;
+            try {
+              await sendPushNotification(
+                "Nová zpráva",
+                `${senderName}: ${message.content}`,
+                offlineUsers.map(u => u.externalId!),
+              );
+            } catch (error) {
+              console.error('Failed to send push notification:', error);
+            }
+          }
+
           // Create notification for all other users
-          const allUsers = await db.select().from(users);
           for (const otherUser of allUsers) {
             if (otherUser.id !== message.userId) {
               await createNotification(

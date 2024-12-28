@@ -7,6 +7,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   displayName: text("display_name"),
   avatar: text("avatar_url"),
+  externalId: text("external_id"),
 });
 
 export const todos = pgTable("todos", {
