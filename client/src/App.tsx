@@ -1,7 +1,4 @@
 import { Switch, Route, useLocation } from "wouter";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { queryClient } from "./lib/queryClient";
-import { Toaster } from "@/components/ui/toaster";
 import { useUser } from "./hooks/use-user";
 import { Loader2 } from "lucide-react";
 import AuthPage from "./pages/AuthPage";
@@ -17,17 +14,9 @@ import ActivityLogPage from "./pages/ActivityLogPage";
 import { WebSocketProvider } from "./components/providers/WebSocketProvider";
 import { AnimatePresence } from "framer-motion";
 import { PageTransition } from "./components/layout/PageTransition";
+import { Toaster } from "@/components/ui/toaster";
 
 function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AppContent />
-      <Toaster />
-    </QueryClientProvider>
-  );
-}
-
-function AppContent() {
   const { user, isLoading } = useUser();
   const [location] = useLocation();
 
@@ -99,6 +88,7 @@ function AppContent() {
           </Switch>
         </AnimatePresence>
       </MobileLayout>
+      <Toaster/>
     </WebSocketProvider>
   );
 }

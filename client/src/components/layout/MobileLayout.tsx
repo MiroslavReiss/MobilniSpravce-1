@@ -3,7 +3,7 @@ import { Home, User, CheckSquare, MessageSquare, FolderKanban, Bell, Activity } 
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/hooks/use-notifications";
 import { Badge } from "@/components/ui/badge";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 interface MobileLayoutProps {
   children: React.ReactNode;
@@ -29,7 +29,7 @@ export function MobileLayout({ children }: MobileLayoutProps) {
       </main>
 
       {/* Bottom Navigation */}
-      <motion.nav
+      <m.nav
         initial={{ y: 100 }}
         animate={{ y: 0 }}
         className="fixed bottom-0 left-0 right-0 h-16 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
@@ -38,49 +38,52 @@ export function MobileLayout({ children }: MobileLayoutProps) {
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = location === item.href;
+
             return (
-              <Link key={item.href} href={item.href}>
-                <motion.a
-                  className="relative flex flex-col items-center"
-                  whileTap={{ scale: 0.95 }}
-                  whileHover={{ scale: 1.05 }}
-                >
-                  <div className={cn(
-                    "flex flex-col items-center gap-1 p-1 rounded-lg transition-colors relative",
-                    isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
-                  )}>
-                    <div className="relative">
-                      <Icon className="h-5 w-5" />
-                      {item.badge && item.badge > 0 && (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          transition={{ type: "spring", stiffness: 500, damping: 25 }}
-                        >
-                          <Badge 
-                            className="absolute -top-2 -right-2 h-4 w-4 flex items-center justify-center p-0 text-[10px]"
-                            variant="destructive"
+              <div key={item.href} className="relative">
+                <Link href={item.href}>
+                  <m.div
+                    className="relative flex flex-col items-center cursor-pointer"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <div className={cn(
+                      "flex flex-col items-center gap-1 p-1 rounded-lg transition-colors relative",
+                      isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                    )}>
+                      <div className="relative">
+                        <Icon className="h-5 w-5" />
+                        {item.badge && item.badge > 0 && (
+                          <m.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: "spring", stiffness: 500, damping: 25 }}
                           >
-                            {item.badge}
-                          </Badge>
-                        </motion.div>
+                            <Badge 
+                              className="absolute -top-2 -right-2 h-4 w-4 flex items-center justify-center p-0 text-[10px]"
+                              variant="destructive"
+                            >
+                              {item.badge}
+                            </Badge>
+                          </m.div>
+                        )}
+                      </div>
+                      <span className="text-xs">{item.label}</span>
+                      {isActive && (
+                        <m.div
+                          layoutId="activeIndicator"
+                          className="absolute -bottom-1 left-0 right-0 h-0.5 bg-primary"
+                          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        />
                       )}
                     </div>
-                    <span className="text-xs">{item.label}</span>
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeIndicator"
-                        className="absolute -bottom-1 left-0 right-0 h-0.5 bg-primary"
-                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                      />
-                    )}
-                  </div>
-                </motion.a>
-              </Link>
+                  </m.div>
+                </Link>
+              </div>
             );
           })}
         </div>
-      </motion.nav>
+      </m.nav>
     </div>
   );
 }
