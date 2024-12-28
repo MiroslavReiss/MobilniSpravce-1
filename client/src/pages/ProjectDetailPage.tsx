@@ -58,23 +58,31 @@ export default function ProjectDetailPage() {
         body: JSON.stringify({ progress }),
         credentials: 'include',
       });
-      if (!response.ok) throw new Error('Failed to update progress');
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || 'Failed to update progress');
+      }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
+      setProgressValue(data.progress); // Update local state with server data
       setIsProgressDirty(false);
       toast({
         title: "Úspěch",
         description: "Progress byl úspěšně uložen",
       });
     },
-    onError: () => {
+    onError: (error) => {
       toast({
         title: "Chyba",
-        description: "Nepodařilo se aktualizovat progress",
+        description: error.message || "Nepodařilo se aktualizovat progress",
         variant: "destructive",
       });
+      // Reset progress value to the last known good state
+      if (project) {
+        setProgressValue(project.progress);
+      }
     },
   });
 
@@ -102,13 +110,25 @@ export default function ProjectDetailPage() {
     },
   });
 
+  // Handle progress change with validation
   const handleProgressChange = (value: number[]) => {
-    setProgressValue(value[0]);
-    setIsProgressDirty(true);
+    const newValue = value[0];
+    if (newValue >= 0 && newValue <= 100) {
+      setProgressValue(newValue);
+      setIsProgressDirty(true);
+    }
   };
 
   const handleSaveProgress = () => {
-    updateProgressMutation.mutate(progressValue);
+    if (progressValue >= 0 && progressValue <= 100) {
+      updateProgressMutation.mutate(progressValue);
+    } else {
+      toast({
+        title: "Chyba",
+        description: "Progress musí být mezi 0 a 100",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleAddNote = (e: React.FormEvent) => {
@@ -143,7 +163,7 @@ export default function ProjectDetailPage() {
               <div className="flex justify-between items-center mb-2">
                 <label className="text-sm font-medium">Progress: {progressValue}%</label>
                 {isProgressDirty && (
-                  <Button 
+                  <Button
                     size="sm"
                     onClick={handleSaveProgress}
                     disabled={updateProgressMutation.isPending}

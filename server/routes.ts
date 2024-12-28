@@ -105,6 +105,9 @@ export function registerRoutes(app: Express): Server {
       return res.status(403).send("Unauthorized");
     }
 
+    // Log the project data for debugging
+    console.log('Project data:', project);
+
     res.json(project);
   });
 
@@ -122,6 +125,8 @@ export function registerRoutes(app: Express): Server {
     const { id } = req.params;
     const { progress } = req.body;
 
+    console.log('Update project progress:', { id, progress }); // Debug log
+
     const [project] = await db.select().from(projects)
       .where(eq(projects.id, parseInt(id)))
       .limit(1);
@@ -134,12 +139,28 @@ export function registerRoutes(app: Express): Server {
       return res.status(403).send("Unauthorized");
     }
 
-    const [updatedProject] = await db.update(projects)
-      .set({ progress })
-      .where(eq(projects.id, parseInt(id)))
-      .returning();
+    try {
+      const [updatedProject] = await db.update(projects)
+        .set({ progress: parseInt(progress.toString()) })
+        .where(eq(projects.id, parseInt(id)))
+        .returning();
 
-    res.json(updatedProject);
+      console.log('Updated project:', updatedProject); // Debug log
+
+      // Create activity log
+      await logActivity(
+        req.user!.id,
+        "update_progress",
+        "project",
+        project.id,
+        `Progress updated to ${progress}%`
+      );
+
+      res.json(updatedProject);
+    } catch (error) {
+      console.error('Error updating project progress:', error);
+      res.status(500).send("Failed to update project progress");
+    }
   });
 
   // Project notes routes
