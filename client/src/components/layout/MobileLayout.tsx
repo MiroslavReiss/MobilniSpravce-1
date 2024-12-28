@@ -18,6 +18,7 @@ export function MobileLayout({ children }: MobileLayoutProps) {
     { icon: MessageSquare, label: "Chat", href: "/chat" },
     { icon: FolderKanban, label: "Projekty", href: "/projects" },
     { icon: Bell, label: "Oznámení", href: "/notifications", badge: unreadCount },
+    { icon: Activity, label: "Historie", href: "/activity-log" },
   ];
 
   return (
@@ -34,22 +35,24 @@ export function MobileLayout({ children }: MobileLayoutProps) {
             const isActive = location === item.href;
             return (
               <Link key={item.href} href={item.href}>
-                <a className="relative">
+                <a className="relative flex flex-col items-center">
                   <div className={cn(
-                    "flex flex-col items-center gap-1 p-1 rounded-lg transition-colors",
+                    "flex flex-col items-center gap-1 p-1 rounded-lg transition-colors relative",
                     isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                   )}>
-                    <Icon className="h-5 w-5" />
+                    <div className="relative">
+                      <Icon className="h-5 w-5" />
+                      {item.badge && item.badge > 0 && (
+                        <Badge 
+                          className="absolute -top-2 -right-2 h-4 w-4 flex items-center justify-center p-0 text-[10px]"
+                          variant="destructive"
+                        >
+                          {item.badge}
+                        </Badge>
+                      )}
+                    </div>
                     <span className="text-xs">{item.label}</span>
                   </div>
-                  {item.badge && item.badge > 0 && (
-                    <Badge 
-                      className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0"
-                      variant="destructive"
-                    >
-                      {item.badge}
-                    </Badge>
-                  )}
                 </a>
               </Link>
             );

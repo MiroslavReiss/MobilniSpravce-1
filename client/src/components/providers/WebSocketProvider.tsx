@@ -28,6 +28,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
   const { user } = useUser();
+  const reconnectAttemptRef = useRef(0);
 
   useEffect(() => {
     if (!user) return;
@@ -39,6 +40,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
 
       ws.onopen = () => {
         setIsConnected(true);
+        reconnectAttemptRef.current = 0;
         if (reconnectTimeoutRef.current) {
           clearTimeout(reconnectTimeoutRef.current);
         }
@@ -46,10 +48,13 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
 
       ws.onclose = () => {
         setIsConnected(false);
-        // Try to reconnect after 5 seconds
+        // Try to reconnect with exponential backoff
+        const backoffTime = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current), 30000);
+        reconnectAttemptRef.current++;
+
         reconnectTimeoutRef.current = setTimeout(() => {
           connect();
-        }, 5000);
+        }, backoffTime);
       };
 
       ws.onerror = () => {
